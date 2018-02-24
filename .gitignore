@@ -3,3 +3,10 @@ dist
 test.*
 
 .Ds_Store
+.idea/SmallRomance.iml
+.idea/dbnavigator.xml
+.idea/inspectionProfiles/
+.idea/markdown-navigator/
+.idea/modules.xml
+.idea/workspace.xml
+yarn.lock
