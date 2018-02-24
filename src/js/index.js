@@ -1,6 +1,6 @@
 /**
-* version v0.1
-*/
+ * version v0.1
+ */
 
 // 基础配置
 import config from '../config/global'
@@ -22,416 +22,436 @@ import ShapeMaker from './other/shape'
 import TitleParticle from './TitleParticle'
 
 
+(function () {
+    class Canvas {
+        constructor() {
+            //初始化属性
+            this.initProperty();
 
-(function(){
-	class Canvas {
-		constructor(){
-			//初始化属性
-			this.initProperty();
+            this.initAudio();
 
-			this.initAudio();
+            //加载图片
+            ImgLoader.load(imgList).then(imgs => {
+                document.querySelector('#loading').style.display = 'none';
+                //bg
+                this.imgs = this.dealImgs(imgs);
+                this.init();
+            }).catch(err => {
+                console.log(err);
+            });
+        }
 
-			//加载图片
-			ImgLoader.load(imgList).then(imgs => {
-				document.querySelector('#loading').style.display = 'none';
-				//bg
-				this.imgs = this.dealImgs(imgs);
-				this.init();
-			}).catch(err => {
-				console.log(err);
-			});		
-		}
-		initAudio(){
-			const audio = new Audio();
-			audio.src = require('../audio/1.mp3');
-			audio.loop = true;
-			audio.play();
-			audio.volume = 0.5;
-			const music = document.querySelector('#music');
+        initAudio() {
+            const audio = new Audio();
+            audio.src = require('../audio/1.mp3');
+            audio.loop = true;
+            audio.play();
+            audio.volume = 0.5;
+            const music = document.querySelector('#music');
 
-			document.addEventListener("WeixinJSBridgeReady", function () { 
-		        audio.play(); 
-		    }, false);
+            document.addEventListener("WeixinJSBridgeReady", function () {
+                audio.play();
+            }, false);
+
+            music.onclick = function () {
+                const cla = this.getAttribute('class');
+                if (cla == 'on') {
+                    this.setAttribute('class', 'off');
+                    audio.pause();
+                } else {
+                    this.setAttribute('class', 'on');
+                    audio.play();
+                }
+            }
+        }
+
+        //创建本例属性
+        initProperty() {
+            //画布宽高
+            this.height = config.height;
+            this.width = config.width;
+
+            //获取画笔
+            //fall、bg、fireworks、mb
+            config.canvases.forEach(canvasId => {
+                this[canvasId + 'Ctx'] = document.querySelector(`#${canvasId}`).getContext('2d');
+            });
+
+            /*********通用*********/
+            // 飘落微粒
+            this.fallDots = [];
+            // 飘落的类型('snow', 'heart', 'mix')
+            this.fallType = config.fallType,
+                //动画的时间
+                this.time = 0;
+            //当前执行的状态
+            this.status = 1;
+
+            /*********阶段一（对话）*********/
+            // 对话的参数
+            this.dialogueOpt = util.extend({}, config.dialogueOpt);
+            // 话的文字
+            this.dialogue = config.dialogue.shift();
+
+            /*********阶段二（天黑）*********/
+            this.sunsetTime = config.sunset;
+
+            /*********阶段三（烟花）*********/
+            //天空颜色
+            this.skyColor = {
+                hue: 210,
+                lightness: 0
+            };
+            //烟花的数组
+            this.fireworks = [];
+            this.fireworkTime = util.random(...config.fireworkInterval) | 0;
+
+            this.fireWords = config.fireWords.split('|');
+            this.fireOpt = util.extend({
+                end: false,
+                time: 600,
+                showWords: false,
+            }, config.fireOpt);
+
+            /*********阶段四（点题）*********/
+            this.titleOpt = {
+                current: -1,
+                start: false,
+                ctx: [],
+                end: false
+            };
+            //大标题
+            this.titleWords = config.titleWords.split('|');
+            //组成字的微粒数组
+            this.titleDots = [];
+        }
+
+        go(currentStatus) {
+            switch (currentStatus) {
+                case 1:
+                    this.dialogueOpt = null;
+                    this.dialogue = null;
+                    this.dialogueCtx.clearRect(0, 0, config.width, config.height);
+                    ++this.status;
+                    break;
+                case 2:
+                    this.sunsetTime = null;
+                    ++this.status;
+                    break;
+                case 3:
+                    config.word.y -= config.titleOpt.distance;
+                    this.fireOpt = null;
+                    this.fireWords = null;
+                    ++this.status;
+                    break;
+                case 4:
+                    this.titleOpt = null;
+                    this.titleWords = null;
+                    this.titleDots = null;
+                    ++this.status;
+                    break;
+            }
+        }
+
+        init() {
+            //画背景图
+            this.drawBg(this.bgCtx, this.imgs.bg);
+
+            //文字形状maker
+            this.shapeMaker = new ShapeMaker(this.width, this.height);
+
+            //测试代码块
+            this.test();
+
+            // 循环体
+            this.loop();
+
+        }
+
+        test() {
+
+        }
+
+        testLoop() {
+
+        }
+
+        //动画效果
+        loop() {
+            //下一帧继续调用loop;
+            requestAnimationFrame(this.loop.bind(this));
+            // console.time('label');
+
+            // 动画的时间
+            ++this.time >= 60000 ? 0 : this.time;
+
+            // 渲染飘落装饰
+            this.renderFall();
+
+            switch (this.status) {
+                case 1:  //对话阶段
+                    this.renderDialogue();
+                    break;
+                case 2: //天黑过程
+                    this.sunset();
+                    break;
+                case 3: // 放烟花
+                    this.controlFire();
+                    this.renderFireworks();
+                    break;
+                case 4:
+                    this.renderTitle();
+                    this.renderFireworks();
+                    break;
+                case 5:
+                    this.end();
+                    this.renderFireworks();
+                    break;
+            }
+
+            this.testLoop();
+            // console.timeEnd('label');
 
 
-			music.onclick = function(){
-				const cla =  this.getAttribute('class');
-				if(cla == 'on'){
-					this.setAttribute('class', 'off');
-					audio.pause();
-				}else{
-					this.setAttribute('class', 'on');
-					audio.play();
-				}
-			}
-		}
-		//创建本例属性
-		initProperty(){
-			//画布宽高
-			this.height = config.height;
-			this.width = config.width;
+        }
 
-			//获取画笔
-			//fall、bg、fireworks、mb
-			config.canvases.forEach(canvasId => {
-				this[canvasId + 'Ctx'] = document.querySelector(`#${canvasId}`).getContext('2d');
-			});		
+        //飘落的装饰
+        renderFall() {
+            this.fallCtx.clearRect(0, 0, this.width, this.height);
+            // 控制飘落装饰类型
+            switch (this.fallType) {
+                case 'snow':
+                    this.time % config.snowInterval == 0 && this.fallDots.push(new Snowflake(config.snow));
+                    break;
+                case 'heart':
+                    this.time % config.heartInterval == 0 && this.fallDots.push(new Heart(config.heart));
+                    break;
+                case 'mix':
 
-			/*********通用*********/
-			// 飘落微粒
-			this.fallDots = [];
-			// 飘落的类型('snow', 'heart', 'mix')
-			this.fallType = config.fallType,
-			//动画的时间
-			this.time = 0;
-			//当前执行的状态
-			this.status = 1;
+                    this.time % config.snowInterval == 0 && this.fallDots.push(new Snowflake(config.snow));
+                    this.time % config.heartInterval == 0 && this.fallDots.push(new Heart(config.heart));
+                    break;
+            }
+            // 雪花飘落
+            for (let i = this.fallDots.length - 1; i >= 0; --i) {
+                !this.fallDots[i].render(this.fallCtx) && this.fallDots.splice(i, 1);
+            }
+        }
 
-			/*********阶段一（对话）*********/
-			// 对话的参数
-			this.dialogueOpt = util.extend({}, config.dialogueOpt);
-			// 话的文字
-			this.dialogue = config.dialogue.shift();
+        // 渲染对话
+        renderDialogue() {
+            const ctx = this.dialogueCtx;
+            ctx.clearRect(0, 0, config.width, config.height);
 
-			/*********阶段二（天黑）*********/
-			this.sunsetTime = config.sunset;
+            ctx.fillStyle = this.dialogueOpt['color' + this.dialogue.type] || this.dialogueOpt.color1;
+            ctx.font = this.dialogueOpt['font' + this.dialogue.type] || this.dialogueOpt.font1;
 
-			/*********阶段三（烟花）*********/
-			//天空颜色
-			this.skyColor = {
-				hue: 210,
-				lightness: 0
-			};
-			//烟花的数组
-			this.fireworks = [];
-			this.fireworkTime = util.random(...config.fireworkInterval) | 0;
+            //说话
+            this.dialogue.current = this.dialogue.current || 0;
+            if (--this.dialogueOpt.speed <= 0) {
+                this.dialogueOpt.speed = config.dialogueOpt.speed;
+                ++this.dialogue.current;
+            }
 
-			this.fireWords = config.fireWords.split('|');
-			this.fireOpt = util.extend({
-				end: false,
-				time: 600,
-				showWords: false,
-			}, config.fireOpt);
+            ctx.fillText(`${this.dialogue.name}：${this.dialogue.txt.slice(0, this.dialogue.current)}`, 20, 80);
 
-			/*********阶段四（点题）*********/
-			this.titleOpt = {
-				current: -1,
-				start: false,
-				ctx:[],
-				end: false
-			};
-			//大标题
-			this.titleWords = config.titleWords.split('|');
-			//组成字的微粒数组
-			this.titleDots = [];				
-		}
-		go(currentStatus){
-			switch (currentStatus){
-				case 1:
-					this.dialogueOpt = null;
-					this.dialogue = null;
-					this.dialogueCtx.clearRect(0, 0, config.width, config.height);
-					++this.status;
-				break;
-				case 2: 
-					this.sunsetTime = null;
-					++this.status;
-				break;
-				case 3: 
-					config.word.y -= config.titleOpt.distance;
-					this.fireOpt = null;
-					this.fireWords = null;
-					++this.status;
-				break;
-				case 4: 
-					this.titleOpt = null;
-					this.titleWords = null;
-					this.titleDots = null;
-					++this.status;
-				break;
-			}
-		}
-		init(){
-			//画背景图
-			this.drawBg(this.bgCtx, this.imgs.bg);
+            //下一段话
+            if (this.dialogue.current >= this.dialogue.txt.length && --this.dialogueOpt.interval <= 0) {
+                if (config.dialogue.length == 0) {
+                    return this.go(1);
+                }
+                this.dialogue = config.dialogue.shift();
+                this.dialogueOpt.interval = config.dialogueOpt.interval;
+            }
 
-			//文字形状maker
-			this.shapeMaker = new ShapeMaker(this.width, this.height);
+        }
 
-			//测试代码块
-			this.test();
+        // 天黑
+        sunset() {
+            if (--this.sunsetTime <= 0) {
+                return this.go(2);
+            }
+            this.fireworkCtx.fillStyle = `hsla(210, 60%, 5%, ${0.01 * (20 - 20 * (this.sunsetTime / config.sunset))})`;
+            this.fireworkCtx.fillRect(0, 0, config.width, config.height);
+        }
 
-			// 循环体
-			this.loop();
+        //控制烟花的逻辑
+        controlFire() {
+            --this.fireOpt.time;
+            if (this.fireOpt.time == 0) {
+                this.createDenseFire();
+            }
+            if (this.fireOpt.time <= -180) {
+                !this.fireOpt.end && this.showFireworkWords();
 
-		}
+            }
+            if (this.fireOpt.time == -60) {
+                this.fireOpt.end && this.fireworks.push(new Firework({
+                    x: config.width / 2,
+                    yEnd: config.height / 8,
+                    count: 600,
+                    radius: 5
+                }));
+            }
+            if (this.fireOpt.time == -360) {
+                this.fireOpt.end && this.go(3);
+            }
 
-		test(){
+        }
 
-		}		
+        //放文字烟花
+        showFireworkWords() {
+            if (this.fireWords.length == 0) {
+                this.fireOpt.end = true;
+                this.fireOpt.time = 180;
+                return;
+            }
+            if (--this.fireOpt.wordInterval <= 0) {
+                // 第二个参数控制是否产生烟花
+                this.getDotsPostion(this.fireWords.shift(), true);
+                this.fireOpt.wordInterval = config.fireOpt.wordInterval;
+            }
+        }
 
-		testLoop(){
+        //创建密集的烟花
+        createDenseFire() {
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    this.fireworks.push(new Firework(config.fireworks));
+                }, i * 100);
+            }
+        }
 
-		}
-		//动画效果
-		loop(){
-			//下一帧继续调用loop;
-			requestAnimationFrame(this.loop.bind(this));
-			// console.time('label');
-			
-			// 动画的时间
-			++this.time >= 60000 ? 0 : this.time;
-			
-			// 渲染飘落装饰
-			this.renderFall();	
+        //渲染烟花
+        renderFireworks() {
+            this.fireworkCtx.fillStyle = config.skyColor.replace('{lightness}', 5 + this.skyColor.lightness * 15).replace('{hue}', this.skyColor.hue);
+            this.fireworkCtx.fillRect(0, 0, this.width, this.height);
+            //随机创建烟花
+            this.createFireworks();
 
-			switch(this.status){
-				case 1:  //对话阶段
-					this.renderDialogue();
-				break;
-				case 2: //天黑过程
-					this.sunset();
-				break;
-				case 3: // 放烟花
-					this.controlFire();
-					this.renderFireworks();
-				break;
-				case 4:
-					this.renderTitle();
-					this.renderFireworks();
-				break;
-				case 5:
-					this.end();
-					this.renderFireworks();
-				break;
-			}
+            this.skyColor = {
+                lightness: 0,
+                hue: 210
+            };
+            for (let i = this.fireworks.length - 1; i >= 0; --i) {
+                this.skyColor = this.skyColor.lightness >= this.fireworks[i].getSkyColor().lightness ? this.skyColor : this.fireworks[i].getSkyColor();
+                !this.fireworks[i].render(this.fireworkCtx) && this.fireworks.splice(i, 1);
+            }
+        }
 
-			this.testLoop();
-			// console.timeEnd('label');
+        // 随机创建烟花
+        createFireworks() {
+            if (--this.fireworkTime <= 0) {
+                this.fireworks.push(new Firework(config.fireworks));
+                this.fireworkTime = util.random(...config.fireworkInterval) | 0;
+            }
+        }
 
-			
-		}
-		//飘落的装饰
-		renderFall(){
-			this.fallCtx.clearRect(0,0,this.width,this.height);
-			// 控制飘落装饰类型
-			switch(this.fallType){
-				case 'snow': this.time % config.snowInterval == 0 && this.fallDots.push(new Snowflake(config.snow));
-				break;
- 				case 'heart': this.time % config.heartInterval == 0 && this.fallDots.push(new Heart(config.heart));
- 				break;
- 				case 'mix': 
+        // 渲染最后 文字的动作
+        renderTitle() {
+            this.createCanvas();
+            this.createTitleDots();
+            if (!this.titleOpt) return;
+            const ctx = this.titleOpt.ctx[this.titleOpt.current];
+            ctx.clearRect(0, 0, this.width, this.height);
+            for (let i in this.titleDots) {
+                this.titleDots[i].render(ctx);
+            }
+            if (--this.titleOpt.time <= 0) {
+                this.titleOpt.start = false;
+            }
+        }
 
- 				this.time % config.snowInterval == 0 && this.fallDots.push(new Snowflake(config.snow));
- 				this.time % config.heartInterval == 0 && this.fallDots.push(new Heart(config.heart));
- 				break;
-			}
-			// 雪花飘落
-			for(let i = this.fallDots.length - 1; i >= 0; --i){
-				!this.fallDots[i].render(this.fallCtx) && this.fallDots.splice(i,1);
-			}
-		}
+        createCanvas() {
+            if (this.titleOpt.start) return;
+            ++this.titleOpt.current;
+            const canvas = document.createElement('canvas');
+            canvas.setAttribute('class', 'title');
+            canvas.id = this.titleOpt.current;
+            canvas.setAttribute('width', config.width);
+            canvas.setAttribute('height', config.height);
+            document.body.appendChild(canvas);
+            this.titleOpt.ctx.push(canvas.getContext('2d'));
+        }
 
-		// 渲染对话
-		renderDialogue(){
-			const ctx = this.dialogueCtx;
-			ctx.clearRect(0, 0, config.width, config.height);
+        createTitleDots() {
+            if (this.titleOpt.start) return;
+            if (this.titleWords.length == 0) {
+                return this.go(4);
+            }
+            this.titleDots = [];
+            this.titleOpt.start = true;
+            this.titleOpt.time = config.titleOpt.e + config.titleOpt.delay;
 
-			ctx.fillStyle = this.dialogueOpt['color' + this.dialogue.type] || this.dialogueOpt.color1;
-			ctx.font = this.dialogueOpt['font' + this.dialogue.type] || this.dialogueOpt.font1;
+            config.shape.gap = config.titleOpt.gap;
+            config.word.size = config.titleOpt.size;
+            config.word.y += config.titleOpt.distance;
 
-			//说话
-			this.dialogue.current = this.dialogue.current || 0;
-			if(--this.dialogueOpt.speed <= 0){
-				this.dialogueOpt.speed = config.dialogueOpt.speed;
-				++this.dialogue.current;
-			}
-			
-			ctx.fillText(`${this.dialogue.name}：${this.dialogue.txt.slice(0, this.dialogue.current)}`, 20, 50);
+            const dots = this.getDotsPostion(this.titleWords.shift());
+            dots.forEach(dot => {
+                const option = {
+                    x: dot.x,
+                    y: dot.y,
+                    xStart: util.random(0, config.width),
+                    yStart: util.random(-100, 0),
+                    size: config.titleOpt.pSize,
+                    e: config.titleOpt.e
+                }
+                this.titleDots.push(new TitleParticle(option));
+            });
+            this.fallType = 'mix';
+        }
 
-			//下一段话
-			if(this.dialogue.current >= this.dialogue.txt.length && --this.dialogueOpt.interval <= 0){
-				if(config.dialogue.length == 0){
-					return this.go(1);
-				}  
-				this.dialogue = config.dialogue.shift();
-				this.dialogueOpt.interval = config.dialogueOpt.interval;
-			}
+        end() {
+            this.fallType = 'mix';
+            this.time % 600 == 0 && this.createDenseFire();
+        }
 
-		}
-		// 天黑
-		sunset(){
-			if(--this.sunsetTime <= 0){
-				return this.go(2);
-			}
-			this.fireworkCtx.fillStyle = `hsla(210, 60%, 5%, ${0.01 * (20 - 20 * (this.sunsetTime / config.sunset) )})`;
-			this.fireworkCtx.fillRect(0, 0, config.width, config.height);
-		}
-		
-		//控制烟花的逻辑
-		controlFire(){
-			--this.fireOpt.time;
-			if(this.fireOpt.time == 0){
-				this.createDenseFire();
-			}
-			if(this.fireOpt.time <= -180){
-				!this.fireOpt.end && this.showFireworkWords();
-				
-			}
-			if(this.fireOpt.time == -60){
-				this.fireOpt.end && this.fireworks.push(new Firework({
-					x: config.width / 2,
-					yEnd: config.height / 8,
-					count: 600,
-					radius: 5
-				}));
-			}
-			if(this.fireOpt.time == -360){
-				this.fireOpt.end && this.go(3);
-			}
+        //获取所有的dots集合。
+        getDotsPostion(wordsArr, showFireworks) {
+            const words = typeof wordsArr == 'string' ? wordsArr.split('') : wordsArr.shift().split('');
+            const length = words.length;
+            const size = config.word.size;
+            const y = config.word.y;
+            const dotsArr = [];
 
-		}
-		//放文字烟花
-		showFireworkWords(){
-			if(this.fireWords.length == 0){
-				this.fireOpt.end = true;
-				this.fireOpt.time = 180;
-				return ;
-			}
-			if(--this.fireOpt.wordInterval <= 0){
-				// 第二个参数控制是否产生烟花
-				this.getDotsPostion(this.fireWords.shift(), true);
-				this.fireOpt.wordInterval = config.fireOpt.wordInterval;
-			}
-		}
-		//创建密集的烟花
-		createDenseFire(){
-			for(let i = 0; i < 10; i++){
-				setTimeout(() => {
-					this.fireworks.push(new Firework(config.fireworks));
-				}, i * 100);
-			}
-		}
-		//渲染烟花
-		renderFireworks(){
-			this.fireworkCtx.fillStyle = config.skyColor.replace('{lightness}', 5 + this.skyColor.lightness * 15).replace('{hue}' , this.skyColor.hue);
-			this.fireworkCtx.fillRect(0,0,this.width,this.height);	
-			//随机创建烟花
-			this.createFireworks();
+            words.forEach((item, index) => {
+                let x;
+                //文字居中
+                length % 2 == 0 ? x = config.width / 2 + (index - length / 2) * size + 1 / 2 * size : x = config.width / 2 + (index - Math.floor(length / 2)) * size;
+                this.shapeMaker.write({ txt: item, x, y, size });
+                const dots = this.shapeMaker.getDots(config.shape);
+                dotsArr.push(...dots);
 
-			this.skyColor = {
-				lightness: 0,
-				hue: 210
-			};
-			for(let i = this.fireworks.length - 1; i >= 0; --i){
-				this.skyColor = this.skyColor.lightness >= this.fireworks[i].getSkyColor().lightness ? this.skyColor : this.fireworks[i].getSkyColor();
-				!this.fireworks[i].render(this.fireworkCtx) && this.fireworks.splice(i,1);	
-			}
-		}
+                const prtOption = {};
+                showFireworks && this.fireworks.push(new Firework({
+                    wait: 30,
+                    radius: 2,
+                    x,
+                    yEnd: y,
+                    dots,
+                    prtOption
+                }));
+            });
 
-		// 随机创建烟花
-		createFireworks(){
-			if(--this.fireworkTime <= 0){
-				this.fireworks.push(new Firework(config.fireworks));
-				this.fireworkTime = util.random(...config.fireworkInterval) | 0;
-			}
-		}
+            return dotsArr;
+        }
 
-		// 渲染最后 文字的动作
-		renderTitle(){
-			this.createCanvas();
-			this.createTitleDots();
-			if(!this.titleOpt) return ;
-			const ctx = this.titleOpt.ctx[this.titleOpt.current];
-			ctx.clearRect(0,0,this.width,this.height);
-			for(let i in this.titleDots){
-				this.titleDots[i].render(ctx);
-			}	
-			if(--this.titleOpt.time <= 0){
-				this.titleOpt.start = false;
-			}
-		}
-		createCanvas(){
-			if(this.titleOpt.start) return;	
-			++this.titleOpt.current;
-			const canvas = document.createElement('canvas');
-			canvas.setAttribute('class', 'title');
-			canvas.id = this.titleOpt.current;
-			canvas.setAttribute('width', config.width);
-			canvas.setAttribute('height', config.height);
-			document.body.appendChild(canvas);
-			this.titleOpt.ctx.push(canvas.getContext('2d'));
-		}
-		createTitleDots(){
-			if(this.titleOpt.start) return;
-			if(this.titleWords.length == 0){
-				return this.go(4);
-			} 
-			this.titleDots = [];
-			this.titleOpt.start = true;
-			this.titleOpt.time = config.titleOpt.e + config.titleOpt.delay;
+        //画背景
+        drawBg(ctx, img) {
+            ctx.drawImage(img, 0, 0, this.width, this.height);
+        }
 
-			config.shape.gap = config.titleOpt.gap;
-			config.word.size = config.titleOpt.size;
-			config.word.y += config.titleOpt.distance;
+        //处理图片为需要的对象类型[] => {};
+        dealImgs(imgs) {
+            const obj = {};
+            imgs.forEach(item => {
+                obj[item.key] = item.img;
+            });
 
-			const dots = this.getDotsPostion(this.titleWords.shift());
-			dots.forEach(dot => {
-				const option = {
-					x: dot.x,
-					y: dot.y,
-					xStart: util.random(0, config.width),
-					yStart: util.random(-100, 0),
-					size: config.titleOpt.pSize,
-					e: config.titleOpt.e
-				}
-				this.titleDots.push(new TitleParticle(option));
-			});
-			this.fallType = 'mix';
-		}
+            return obj;
+        }
+    }
 
-		end(){
-			this.fallType = 'mix';
-			this.time % 600 == 0 && this.createDenseFire();
-		}
-
-		//获取所有的dots集合。
-		getDotsPostion(wordsArr, showFireworks){
-			const words = typeof wordsArr == 'string' ? wordsArr.split('') : wordsArr.shift().split('');
-			const length = words.length;
-			const size = config.word.size;
-			const y = config.word.y;
-			const dotsArr = [];
-
-			words.forEach((item,index)=> {
-				let x;
-				//文字居中
-				length % 2 == 0 ? x = config.width / 2 + (index - length / 2) * size + 1 / 2 * size : x = config.width / 2 + (index - Math.floor(length / 2)) * size;
-				this.shapeMaker.write({txt:item, x, y, size});
-				const dots = this.shapeMaker.getDots(config.shape);
-				dotsArr.push(...dots);
-
-				const prtOption = {};
-				showFireworks && this.fireworks.push(new Firework({wait:30, radius:2, x, yEnd: y, dots, prtOption}));
-			});
-
-			return dotsArr;
-		}
-		
-		//画背景
-		drawBg(ctx,img){
-			ctx.drawImage(img,0,0,this.width,this.height);
-		}
-		//处理图片为需要的对象类型[] => {};
-		dealImgs(imgs){
-			const obj = {};
-			imgs.forEach(item => {
-				obj[item.key] = item.img;
-			});
-
-			return obj;
-		}
-	}
-
-	new Canvas();
+    new Canvas();
 })();
